@@ -1,0 +1,19 @@
+{
+  "name": "three",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "vite": "^7.0.4"
+  },
+  "dependencies": {
+    "@sparkjsdev/spark": "^0.1.6",
+    "gsplat": "^1.2.9",
+    "three": "^0.178.0"
+  }
+}

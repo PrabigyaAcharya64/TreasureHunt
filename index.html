@@ -1,0 +1,275 @@
+<script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdnjs.cloudflare.com/ajax/libs/three.js/0.174.0/three.module.js",
+      "@sparkjsdev/spark": "https://sparkjs.dev/releases/spark/0.1.6/spark.module.js"
+    }
+  }
+</script>
+<style> body {margin: 0;} </style>
+<div id="controlsDisplay" style="position:fixed;top:10px;right:10px;background:rgba(0,0,0,0.5);color:#fff;padding:8px 14px;border-radius:6px;font-family:monospace;z-index:1001;pointer-events:none;font-size:15px;line-height:1.7;">
+  <b>Controls</b><br>
+  W : Forward<br>
+  S : Backward<br>
+  A : Left<br>
+  D : Right<br>
+  Space : Up<br>
+  Shift : Down
+</div>
+<script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdnjs.cloudflare.com/ajax/libs/three.js/0.174.0/three.module.js",
+      "@sparkjsdev/spark": "https://sparkjs.dev/releases/spark/0.1.6/spark.module.js"
+    }
+  }
+  
+</script>
+<script src="https://cdn.jsdelivr.net/npm/@dimforge/rapier3d-compat@0.11.2/rapier3d.min.js"></script>
+<div id="positionDisplay" style="position:fixed;top:10px;left:10px;background:rgba(0,0,0,0.7);color:#fff;padding:8px 12px;border-radius:6px;font-family:monospace;z-index:1000;">
+  X: 0, Y: 0, Z: 0
+</div>
+<script type="module">
+  import * as THREE from "three";
+  import { SplatMesh } from "@sparkjsdev/spark";
+  import { PointerLockControls } from "three/examples/jsm/controls/PointerLockControls.js";
+
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+  camera.position.set(0, 0.75, -2.5); 
+  const renderer = new THREE.WebGLRenderer();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  document.body.appendChild(renderer.domElement);
+
+  const splatURL = "/KeshavNarayanChowk.splat";
+  const butterfly = new SplatMesh({ url: splatURL });
+  butterfly.quaternion.set(1, 0, 0, 0);
+  butterfly.position.set(0, 0, -3);
+  scene.add(butterfly);
+
+  scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+
+  
+  const minX = -10, maxX = 10;
+  const minZ = -10, maxZ = 10;
+  
+  const allowedPolygon = [
+    [-0.20, 1.2],
+    [-3.75, -2.6],
+    [1, -6.2],
+    [3.5, -2.5]
+  ];
+  const minY = -0.5, maxY = 0.75;
+
+  
+  function pointInPolygon(x, z, polygon) {
+    let inside = false;
+    for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+      const xi = polygon[i][0], zi = polygon[i][1];
+      const xj = polygon[j][0], zj = polygon[j][1];
+      const intersect = ((zi > z) !== (zj > z)) &&
+        (x < (xj - xi) * (z - zi) / (zj - zi + 1e-10) + xi);
+      if (intersect) inside = !inside;
+    }
+    return inside;
+  }
+
+  let lastValidPosition = camera.position.clone();
+
+  const controls = new PointerLockControls(camera, renderer.domElement);
+
+  document.body.addEventListener('click', () => {
+    controls.lock();
+  });
+
+  
+  const move = { forward: false, backward: false, left: false, right: false, up: false, down: false };
+  const velocity = new THREE.Vector3();
+  const speed = 5.0;
+
+  
+  window.addEventListener('keydown', (event) => {
+    switch (event.code) {
+      case 'KeyS': move.forward = true; break;
+      case 'KeyW': move.backward = true; break;
+      case 'KeyA': move.left = true; break;
+      case 'KeyD': move.right = true; break;
+      case 'Space': move.up = true; break;
+      case 'ShiftLeft': move.down = true; break;
+    }
+  });
+  window.addEventListener('keyup', (event) => {
+    switch (event.code) {
+      case 'KeyW': move.forward = false; break;
+      case 'KeyS': move.backward = false; break;
+      case 'KeyA': move.left = false; break;
+      case 'KeyD': move.right = false; break;
+      case 'Space': move.up = false; break;
+      case 'ShiftLeft': move.down = false; break;
+    }
+  });
+
+  
+  renderer.setAnimationLoop(function animate() {
+    if (controls.isLocked) {
+      velocity.set(0, 0, 0);
+      if (move.forward) velocity.z -= speed * 0.02;
+      if (move.backward) velocity.z += speed * 0.02;
+      if (move.left) velocity.x -= speed * 0.02;
+      if (move.right) velocity.x += speed * 0.02;
+      
+      controls.moveRight(velocity.x);
+      controls.moveForward(velocity.z);
+      
+      if (move.up) camera.position.y += speed * 0.02;
+      if (move.down) camera.position.y -= speed * 0.02;
+      // Clamp Y
+      camera.position.y = Math.max(minY, Math.min(maxY, camera.position.y));
+      // Polygonal area check for XZ
+      if (pointInPolygon(camera.position.x, camera.position.z, allowedPolygon)) {
+        lastValidPosition.copy(camera.position);
+      } else {
+        camera.position.x = lastValidPosition.x;
+        camera.position.z = lastValidPosition.z;
+      }
+    }
+    renderer.render(scene, camera);
+    const posDiv = document.getElementById('positionDisplay');
+    posDiv.textContent = `X: ${camera.position.x.toFixed(2)}, Y: ${camera.position.y.toFixed(2)}, Z: ${camera.position.z.toFixed(2)}`;
+  });
+
+  
+  window.addEventListener('resize', () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  });
+
+  RAPIER.init().then(() => {
+    let world = new RAPIER.World({ x: 0.0, y: -9.81, z: 0.0 });
+
+    // Camera physics body
+    let cameraBodyDesc = new RAPIER.RigidBodyDesc(RAPIER.RigidBodyType.Dynamic)
+        .setTranslation(camera.position.x, camera.position.y, camera.position.z);
+    let cameraBody = world.createRigidBody(cameraBodyDesc);
+    let cameraColliderDesc = RAPIER.ColliderDesc.ball(0.2);
+    world.createCollider(cameraColliderDesc, cameraBody);
+
+    // Previous thin box collider (polyBody)
+    const polyX = 2.99;
+    const polyY = (-0.15 + -0.50) / 2; // -0.325
+    const polyZ = (-3.28 + -3.42) / 2; // -3.35
+    const polyHalfWidth = 0.001; // x: all 2.99, so very thin in x
+    const polyHalfHeight = Math.abs(-0.15 - -0.50) / 2; // 0.175
+    const polyHalfDepth = Math.abs(-3.28 - -3.42) / 2; // 0.07
+    let polyBodyDesc = new RAPIER.RigidBodyDesc(RAPIER.RigidBodyType.Fixed)
+        .setTranslation(polyX, polyY, polyZ);
+    let polyBody = world.createRigidBody(polyBodyDesc);
+    let polyColliderDesc = RAPIER.ColliderDesc.cuboid(polyHalfWidth, polyHalfHeight, polyHalfDepth);
+    world.createCollider(polyColliderDesc, polyBody);
+
+    // New cuboid collider (cuboidBody)
+    const cuboidCenterX = (-0.55 + 0.97 + -0.31 + -1.65) / 4; // ≈ -0.385
+    const cuboidCenterY = (0.75 + 0.15) / 2; // 0.45
+    const cuboidCenterZ = (-2.31 + -3.23 + -4.75 + -3.68) / 4; // ≈ -3.4925
+    const cuboidHalfWidth = (0.97 - -1.65) / 2; // 1.31
+    const cuboidHalfHeight = (0.75 - 0.15) / 2; // 0.3
+    const cuboidHalfDepth = (-2.31 - -4.75) / 2; // 1.22
+    let cuboidBodyDesc = new RAPIER.RigidBodyDesc(RAPIER.RigidBodyType.Fixed)
+        .setTranslation(cuboidCenterX, cuboidCenterY, cuboidCenterZ);
+    let cuboidBody = world.createRigidBody(cuboidBodyDesc);
+    let cuboidColliderDesc = RAPIER.ColliderDesc.cuboid(cuboidHalfWidth, cuboidHalfHeight, cuboidHalfDepth);
+    world.createCollider(cuboidColliderDesc, cuboidBody);
+
+    // Bigger polygon cuboid collider
+    // Upper face coordinates (y=0.75):
+    // (-1.39, 0.75, -3.26), (-0.70, 0.75, -2.59), (0.56, 0.75, -3.55), (-0.44, 0.75, -4.67)
+    // Lower face: same x/z, y=-0.5
+    const bigPolyXs = [-1.39, -0.70, 0.56, -0.44];
+    const bigPolyZs = [-3.26, -2.59, -3.55, -4.67];
+    const bigPolyYmax = 0.75;
+    const bigPolyYmin = -0.5;
+    // Center
+    const bigPolyCenterX = (bigPolyXs[0] + bigPolyXs[1] + bigPolyXs[2] + bigPolyXs[3]) / 4;
+    const bigPolyCenterY = (bigPolyYmax + bigPolyYmin) / 2;
+    const bigPolyCenterZ = (bigPolyZs[0] + bigPolyZs[1] + bigPolyZs[2] + bigPolyZs[3]) / 4;
+    // Half extents
+    const bigPolyHalfWidth = (Math.max(...bigPolyXs) - Math.min(...bigPolyXs)) / 2;
+    const bigPolyHalfHeight = (bigPolyYmax - bigPolyYmin) / 2;
+    const bigPolyHalfDepth = (Math.max(...bigPolyZs) - Math.min(...bigPolyZs)) / 2;
+    let bigPolyBodyDesc = new RAPIER.RigidBodyDesc(RAPIER.RigidBodyType.Fixed)
+        .setTranslation(bigPolyCenterX, bigPolyCenterY, bigPolyCenterZ);
+    let bigPolyBody = world.createRigidBody(bigPolyBodyDesc);
+    let bigPolyColliderDesc = RAPIER.ColliderDesc.cuboid(bigPolyHalfWidth, bigPolyHalfHeight, bigPolyHalfDepth);
+    world.createCollider(bigPolyColliderDesc, bigPolyBody);
+
+    // Trimesh collider for the polygonal prism
+    // Vertices: top face (y=0.75), bottom face (y=-0.5)
+    const trimeshVertices = [
+      // Top face
+      -1.39, 0.75, -3.26, // 0: A
+      -0.70, 0.75, -2.59, // 1: B
+       0.56, 0.75, -3.55, // 2: C
+      -0.44, 0.75, -4.67, // 3: D
+      // Bottom face
+      -1.39, -0.5, -3.26, // 4: A'
+      -0.70, -0.5, -2.59, // 5: B'
+       0.56, -0.5, -3.55, // 6: C'
+      -0.44, -0.5, -4.67  // 7: D'
+    ];
+    const trimeshIndices = [
+      // Top face
+      0, 1, 2,
+      0, 2, 3,
+      // Bottom face
+      4, 6, 5,
+      4, 7, 6,
+      // Sides
+      0, 4, 5, 0, 5, 1, // AB
+      1, 5, 6, 1, 6, 2, // BC
+      2, 6, 7, 2, 7, 3, // CD
+      3, 7, 4, 3, 4, 0  // DA
+    ];
+    let trimeshBodyDesc = new RAPIER.RigidBodyDesc(RAPIER.RigidBodyType.Fixed);
+    let trimeshBody = world.createRigidBody(trimeshBodyDesc);
+    let trimeshColliderDesc = RAPIER.ColliderDesc.trimesh(trimeshVertices, trimeshIndices);
+    world.createCollider(trimeshColliderDesc, trimeshBody);
+
+    // In your animation loop:
+    renderer.setAnimationLoop(function animate() {
+      if (controls.isLocked) {
+        // Calculate movement direction
+        let moveForward = move.forward ? 1 : 0;
+        let moveBackward = move.backward ? 1 : 0;
+        let moveLeft = move.left ? 1 : 0;
+        let moveRight = move.right ? 1 : 0;
+        let moveUp = move.up ? 1 : 0;
+        let moveDown = move.down ? 1 : 0;
+        let direction = new THREE.Vector3();
+        camera.getWorldDirection(direction);
+        direction.y = 0; // Only move in XZ plane for forward/backward
+        direction.normalize();
+        let right = new THREE.Vector3();
+        right.crossVectors(camera.up, direction).normalize();
+        let velocity = new THREE.Vector3();
+        // W/S for forward/backward
+        velocity.add(direction.clone().multiplyScalar((moveForward - moveBackward) * speed));
+        // A/D for left/right
+        velocity.add(right.clone().multiplyScalar((moveRight - moveLeft) * speed));
+        // Space/Shift for up/down
+        velocity.y += (moveUp - moveDown) * speed;
+        // Set velocity on the dynamic camera body
+        cameraBody.setLinvel({ x: velocity.x, y: velocity.y, z: velocity.z }, true);
+      } else {
+        // If not locked, stop movement
+        cameraBody.setLinvel({ x: 0, y: 0, z: 0 }, true);
+      }
+      world.step();
+      let pos = cameraBody.translation();
+      camera.position.set(pos.x, pos.y, pos.z);
+      renderer.render(scene, camera);
+      const posDiv = document.getElementById('positionDisplay');
+      posDiv.textContent = `X: ${camera.position.x.toFixed(2)}, Y: ${camera.position.y.toFixed(2)}, Z: ${camera.position.z.toFixed(2)}`;
+    });
+  });
+</script>
