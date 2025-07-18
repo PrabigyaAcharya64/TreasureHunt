@@ -2,7 +2,8 @@
   {
     "imports": {
       "three": "https://cdnjs.cloudflare.com/ajax/libs/three.js/0.174.0/three.module.js",
-      "@sparkjsdev/spark": "https://sparkjs.dev/releases/spark/0.1.6/spark.module.js"
+      "@sparkjsdev/spark": "https://sparkjs.dev/releases/spark/0.1.6/spark.module.js",
+      "three/examples/jsm/controls/PointerLockControls.js": "https://cdn.jsdelivr.net/npm/three@0.174.0/examples/jsm/controls/PointerLockControls.min.js"
     }
   }
 </script>
@@ -41,7 +42,7 @@
   renderer.setSize(window.innerWidth, window.innerHeight);
   document.body.appendChild(renderer.domElement);
 
-  const splatURL = "/KeshavNarayanChowk.splat";
+  const splatURL = "./KeshavNarayanChowk.splat";
   const butterfly = new SplatMesh({ url: splatURL });
   butterfly.quaternion.set(1, 0, 0, 0);
   butterfly.position.set(0, 0, -3);
@@ -146,7 +147,15 @@
     renderer.setSize(window.innerWidth, window.innerHeight);
   });
 
-  RAPIER.init().then(() => {
+  const waitForRapier = () => new Promise(resolve => {
+    const check = () => {
+      if (window.RAPIER) resolve(window.RAPIER);
+      else setTimeout(check, 50);
+    };
+    check();
+  });
+
+  waitForRapier().then(RAPIER => {
     let world = new RAPIER.World({ x: 0.0, y: -9.81, z: 0.0 });
 
     // Camera physics body
